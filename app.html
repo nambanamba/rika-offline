@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>理科オフライン</title>
+<script>window.OFFLINE_SHELL = 1;</script>
+<style>
+/* 方眼ノートの上で、赤ペンで丸付けする。左に「いまの問題」、右に「ステップ地図」。 */
+:root{
+  --paper:#f4f7f5; --sheet:#ffffff; --grid:#dbe5e0; --ink:#1d2a2c; --muted:#5f6f70;
+  --teal:#1c6b78; --teal-soft:#e2f0f1; --red:#cf3a2c; --red-soft:#fbe9e6; --done:#2f7d4f; --done-soft:#e3f2e8;
+  --line:#cfd9d5; --shadow:0 1px 2px rgba(20,40,40,.08);
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","BIZ UDPGothic",sans-serif;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#141b1c; --sheet:#1c2526; --grid:#253132; --ink:#e6eeec; --muted:#9db0ae;
+  --teal:#5fb7c4; --teal-soft:#1d3539; --red:#ff7a6b; --red-soft:#3a2220; --done:#6fcf97; --done-soft:#1d3326;
+  --line:#2f3d3e; --shadow:none; color-scheme:dark}}
+:root{--s-first:#2f7d4f;--s-redo:#6db487;--s-ng:#cf3a2c;--s-todo:#c3cdc9;--s-skip:#e4e9e7;--s-ink:#fff;--s-ink2:#1d2a2c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--s-first:#6fcf97;--s-redo:#3d8a5c;--s-ng:#ff7a6b;--s-todo:#4a5859;--s-skip:#2a3536;--s-ink:#10201a;--s-ink2:#e6eeec}}
+:root[data-theme="dark"]{--s-first:#6fcf97;--s-redo:#3d8a5c;--s-ng:#ff7a6b;--s-todo:#4a5859;--s-skip:#2a3536;--s-ink:#10201a;--s-ink2:#e6eeec}
+:root[data-theme="dark"]{
+  --paper:#141b1c; --sheet:#1c2526; --grid:#253132; --ink:#e6eeec; --muted:#9db0ae;
+  --teal:#5fb7c4; --teal-soft:#1d3539; --red:#ff7a6b; --red-soft:#3a2220; --done:#6fcf97; --done-soft:#1d3326;
+  --line:#2f3d3e; --shadow:none; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:12px 48px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;padding-block:8px 12px}
+h1{font-family:var(--f-display);font-size:1.6rem;margin:0;letter-spacing:.04em}
+#kai{font:inherit;font-family:var(--f-display);font-size:1rem;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink);max-width:100%}
+.tally{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;font-variant-numeric:tabular-nums}
+.tally span{background:var(--sheet);border:1px solid var(--line);border-radius:99px;padding:2px 12px;font-size:.9rem}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+.why{font-size:.9rem;color:var(--teal);background:var(--teal-soft);border-radius:4px;padding:4px 10px;display:inline-block}
+.qhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:10px 0 8px}
+.qhead h2{font-family:var(--f-display);font-size:1.5rem;margin:0}
+.qhead .unit{color:var(--muted);font-size:.95rem}
+.qimg{display:block;width:100%;border:1px solid var(--line);border-radius:4px;background:#fff}
+.steps{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.step{border-top:1px dashed var(--line);padding-top:12px}
+.step h3{font-family:var(--f-display);font-size:1.05rem;margin:0 0 8px;display:flex;gap:8px;align-items:center}
+.step h3 b{display:inline-grid;place-items:center;width:1.6em;height:1.6em;border-radius:50%;background:var(--teal);color:var(--sheet);font-size:.85rem}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,.btn{font:inherit;font-family:var(--f-display);font-weight:700;border-radius:10px;border:2px solid var(--teal);background:var(--sheet);color:var(--teal);padding:10px 18px;cursor:pointer;min-height:48px}
+button.primary,.btn.primary{background:var(--teal);color:var(--sheet)}
+button.ghost{border-color:var(--line);color:var(--muted);font-weight:500;min-height:40px;padding:6px 12px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,.btn:focus-within{outline:3px solid var(--red);outline-offset:2px}
+.btn input{position:absolute;opacity:0;width:1px;height:1px}
+.btn{position:relative;display:inline-flex;align-items:center}
+.photo{max-height:220px;border:1px solid var(--line);border-radius:4px}
+.marks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.mark{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mark .sym{font-family:var(--f-display);font-size:2.2rem;line-height:1;color:var(--red);width:1.2em;text-align:center}
+.mark .sub{min-width:2.6em;font-weight:700}
+.mark .read{color:var(--muted)}
+.note{font-size:.95rem;color:var(--muted)}
+.comment{background:var(--red-soft);border-radius:6px;padding:8px 12px}
+.explain{white-space:pre-wrap;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 14px;line-height:1.85}
+.chat{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.chat .me{align-self:flex-end;background:var(--teal-soft);border-radius:10px;padding:6px 12px;max-width:85%}
+.chat .cl{white-space:pre-wrap;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 12px;max-width:95%}
+.ask{display:flex;gap:8px}
+.ask input{flex:1;min-width:0;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+.fig{border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--sheet)}
+.fig .ft{font-family:var(--f-display);font-size:1.05rem;margin:0 0 8px}
+.fig .fs{display:flex;justify-content:center;padding:6px 0}
+.fig .fn{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.dots{display:flex;gap:6px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--teal)}
+.today{margin-bottom:16px}
+.th{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.th h2{font-family:var(--f-display);font-size:1.3rem;margin:0 0 8px}
+.plist{margin:8px 0 12px;padding-left:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 16px}
+.plist li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.pno{font-family:var(--f-display);font-size:1.3rem;color:var(--teal)}
+.pst{font-family:var(--f-display);color:var(--red);font-size:1.2rem;letter-spacing:2px}
+button.link{border:none;background:none;padding:0;min-height:auto;color:var(--ink);text-decoration:underline;font-family:var(--f-body);font-weight:700}
+#perday{width:4.5em;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+.dash{margin-bottom:16px}
+.setrow{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-bottom:6px}
+.setrow input[type=number],.setrow select{font:inherit;width:4.5em;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+.setrow select{width:auto}.ck{margin-left:6px;white-space:nowrap}
+.slegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;margin:6px 0 10px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.sbar{display:flex;gap:2px;height:22px;min-width:120px;flex:1;border-radius:4px;overflow:hidden}
+.seg{display:flex;align-items:center;justify-content:center;font-size:.75rem;font-variant-numeric:tabular-nums;min-width:3px;white-space:nowrap;overflow:hidden}
+.s-first{background:var(--s-first);color:var(--s-ink)}.s-redo{background:var(--s-redo);color:var(--s-ink)}.s-ng{background:var(--s-ng);color:var(--s-ink)}
+.s-todo{background:var(--s-todo);color:var(--s-ink2)}.s-skip{background:var(--s-skip);color:var(--muted);background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(128,128,128,.25) 4px 6px)}
+.kbars{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.krow{display:flex;align-items:center;gap:10px}.krow.out{opacity:.5}
+.kname{width:8.5em;font-family:var(--f-display);font-size:.95rem}.knum{width:4.5em;text-align:right;font-variant-numeric:tabular-nums;font-size:.9rem;color:var(--muted)}
+.dk{border-top:1px solid var(--line);padding:8px 0}.dk summary{font-family:var(--f-display);cursor:pointer;font-size:1.05rem}
+.du{padding:8px 0 4px 8px}.duh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:.9rem;color:var(--muted);margin-bottom:6px}
+.duh .sbar{max-width:260px;height:14px}.duh .seg{font-size:0}
+button.mini{min-height:30px;padding:2px 10px;font-size:.8rem}
+.dchip{font:inherit;font-family:var(--f-body);font-weight:400;font-size:.85rem;min-height:34px;padding:3px 10px;border-radius:99px;border:2px solid transparent;cursor:pointer}
+.dchip b{letter-spacing:1px}.dchip.sel{outline:3px solid var(--teal);outline-offset:1px}
+.curhead{margin:0 0 8px;padding:6px 10px;border-left:4px solid var(--teal);background:var(--teal-soft);border-radius:4px}.curhead .note{display:block}
+.dact{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.map h2{font-family:var(--f-display);font-size:1.15rem;margin:0 0 10px}
+.u{padding:8px 0;border-top:1px solid var(--line)}
+.u:first-of-type{border-top:none}
+.u .name{font-size:.88rem;color:var(--muted);margin-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-family:var(--f-body);font-weight:400;font-size:.85rem;min-height:34px;padding:3px 10px;border-radius:99px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+.chip.ok{background:var(--done-soft);border-color:var(--done);color:var(--done)}
+.chip.ng{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.chip.now{outline:3px solid var(--teal);outline-offset:1px}
+.chip.wait{opacity:.5}
+.mh{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.mh h2{margin:0}
+button.cyc{font:inherit;font-weight:700;min-height:34px;padding:2px 8px;margin-left:4px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--red)}
+.typein{margin-top:8px}.tain{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink);width:12em;max-width:60vw}
+.diag{font-size:.8rem}
+.ansimg{margin:6px 0 10px}.ansimg summary{cursor:pointer;font-family:var(--f-display);color:var(--teal)}.ansimg img{display:block;width:100%;max-width:640px;margin-top:8px;border:1px solid var(--line);border-radius:4px;background:#fff}
+.ansbox{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:8px}.ansv{font-family:var(--f-body);font-weight:700;font-size:1.25rem;color:var(--red)}
+.hist{border-collapse:collapse;margin:6px 0;font-size:.9rem}.hist th,.hist td{padding:3px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.hist span{display:inline-block;margin:0 6px 2px 0;font-variant-numeric:tabular-nums}.hist small{margin-left:2px;color:var(--muted)}
+.hok{color:var(--done)}.hng{color:var(--red);font-weight:700}.ngc{margin-left:4px;color:var(--red);font-weight:700}.lh{font-size:.95rem;margin:10px 0 2px}
+button.arm{border-color:var(--red);color:var(--red);font-weight:700}
+.pgrp{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;padding:3px 6px;border:1px solid var(--line);border-radius:12px}
+.pgrp.intoday{border:2px dashed var(--teal)}.pgl{font-size:.85rem;margin-right:2px}
+.pgrp .dchip{min-height:32px;padding:2px 8px}.pgrp .dchip.on{outline:3px solid var(--teal);outline-offset:1px}
+.dchip.intoday{outline:3px dashed var(--teal);outline-offset:1px}
+/* 選んだ問題をはっきり・中身を見る・下の帯（2026-10-10） */
+.pgrp.intoday{border:2px solid var(--teal);background:var(--teal-soft)}
+.pgrp .dchip.on,.dchip.intoday{outline:3px solid var(--teal);outline-offset:2px;box-shadow:0 0 0 5px var(--teal-soft);font-weight:700}
+.pitem{display:inline-flex;align-items:center;gap:2px}
+.peekb{font:inherit;font-size:.78rem;font-weight:400;min-height:32px;padding:2px 8px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--muted)}
+.peekb.on{border-color:var(--teal);color:var(--teal);font-weight:700}
+.peek{margin:6px 0;padding:6px;border:2px solid var(--teal);border-radius:10px;background:var(--sheet)}
+.peek figcaption{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.85rem;margin-bottom:4px}
+.peek img{display:block;width:100%;height:auto;background:#fff;border-radius:4px}
+#todaybar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:8px 16px calc(8px + env(safe-area-inset-bottom));background:var(--sheet);border-top:2px solid var(--teal);box-shadow:0 -2px 8px rgba(0,0,0,.12);font-size:.95rem}
+#todaybar .tbn b{font-size:1.15rem;color:var(--teal)}#todaybar .tba{flex:1;min-width:0;color:var(--muted);font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.hasbar{padding-bottom:64px}
+.dlist li{gap:6px 8px}#addp{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink);max-width:100%}
+.sjump{margin:6px 0 4px}.sjump button.on{border-color:var(--teal);color:var(--teal);font-weight:700}
+[data-logkai].on{border-color:var(--teal);color:var(--teal);font-weight:700}.lday{margin:2px 0}.lday>summary{cursor:pointer;padding:4px 0}
+.legend{font-size:.8rem;color:var(--muted);margin-top:10px}
+.finish{text-align:center;padding:40px 10px}
+.finish p{font-family:var(--f-display);font-size:1.6rem;color:var(--red);margin:0}
+@media (prefers-reduced-motion:no-preference){.mark .sym{animation:pop .35s ease-out}@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}}
+/* 子どもの画面: 今日のプリントの一覧と、えらんだ問題だけ */
+body.child #kai,body.child #tally,body.child #dash,body.child #map,body.child #tochild{display:none}
+body.child .grid{grid-template-columns:minmax(0,1fr)}
+body.child #cur:empty{display:none}
+.toparent{display:none;text-align:right;margin-top:24px}body.child .toparent{display:block}
+#tochild{margin-left:8px}#pw{font:inherit;width:8em;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--sheet);color:var(--ink)}
+.klist{list-style:none;padding:0;margin:8px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.klist button{width:100%;text-align:left;display:flex;align-items:center;gap:10px;font-family:var(--f-body);font-weight:700;color:var(--ink);border-color:var(--line)}
+.klist button.on{outline:3px solid var(--teal);outline-offset:1px}
+.klist .kno{font-family:var(--f-display);font-size:1.4rem;color:var(--teal)}
+.klist .kst{margin-left:auto;font-family:var(--f-display);color:var(--red);letter-spacing:2px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>理科計算ステップ帳</h1>
+    <select id="kai" aria-label="回をえらぶ"></select>
+    <div class="tally" id="tally"></div>
+    <button class="ghost" id="tochild">子どもの画面にする</button>
+  </header>
+  <section class="sheet today" id="today"></section>
+  <div class="grid" style="margin-bottom:16px">
+    <main class="sheet" id="cur" aria-live="polite"></main>
+    <aside class="sheet map" id="map"></aside>
+  </div>
+  <section class="sheet dash" id="dash"></section>
+  <form class="toparent" id="pwf"><button type="button" class="ghost" id="toparent">おうちの人の画面</button>
+    <span id="pwbox" hidden><input id="pw" type="password" autocomplete="off" placeholder="合言葉" aria-label="合言葉"> <button class="ghost">開く</button> <span class="note" id="pwmsg"></span></span></form>
+</div>
+
+<script src="jspdf.umd.min.js"></script>
+<script>
+// ファイルを取りにいくときは、ページの住所の ?__frame_t=…（通行証）を付ける。iPad はこれが無いと 403 で読めない（算数ステップ帳 2026-11-01 と同じ）
+window.furl = u => { if (!u || /^(data:|blob:|https?:|#)/.test(u)) return u; if (u.startsWith("/_blob/")) u = u.slice(1);
+  const q = location.search.slice(1); return q ? u + (u.includes("?") ? "&" : "?") + q : u; };
+window.loadJs = u => document.write('<script src="' + furl(u) + '"><\/script>');
+</script>
+<script>loadJs("figlib.js?v=5d2f596a")</script>
+<script>loadJs("kais.js?v=e42ce29d")</script>
+<script>loadJs("model.js?v=0ce64587")</script>
+<script>
+// 算数の「Claude に図を描かせる」（vizex.js）は理科では使わない。呼び出し口だけ残す
+const lectBlock = () => "", lectOf = () => null, vizUsable = () => false, vizPromptFor = () => "", vizDraw = () => "";
+</script>
+<script>
+let MODE = "parent";
+try { MODE = localStorage.getItem("rika-step-mode") === "child" ? "child" : "parent"; } catch (e) {}
+document.body.classList.toggle("child", MODE === "child");
+function setMode(m) { try { localStorage.setItem("rika-step-mode", m); } catch (e) {} location.reload(); }
+/* ---------- 問題データ（回ごと。出典: 予習シリーズ5年下。データは data_0N.js / keys_0N.js / figs_0N.js） ---------- */
+const KAI_LIST = Object.keys(window.KAI_DATA || {}).map(Number).sort((a, b) => a - b);
+let KAI_NO = 7;
+try { const h = /^#kai(\d+)$/.exec(location.hash); const ls = +localStorage.getItem("rika-step-kai"); KAI_NO = h ? +h[1] : (ls || 7); } catch (e) {}
+if (!KAI_LIST.includes(KAI_NO)) KAI_NO = KAI_LIST[KAI_LIST.length - 1];
+const KD = window.KAI_DATA[KAI_NO];
+const KAI = {no: KAI_NO, title: KD.title};
+const RECC = "rec" + KAI_NO;    // 記録のコレクション（守ること.md: 名前を変えない）
+let rec = {};           // その回の記録: sk -> [{ok, t, by, read}]
+let db = null, sample = null, canImg = false;
+// 電波が無いときの記録の守り（2026-11-06 機内でやるため）: アプリ（db）に書けていない記録は、この端末に「まだ送っていない」印を残す。
+// つながって db の記録が届いても、印のある記録はこの端末のものを使い、あとで db に書き戻す（recFlush は store.js）
+const PEND_LS = "rika-step-pending";
+let PEND = {}; try { PEND = JSON.parse(localStorage.getItem(PEND_LS) || "{}") || {}; } catch (e) { PEND = {}; }
+const pendSave = () => { try { localStorage.setItem(PEND_LS, JSON.stringify(PEND)); } catch (e) {} };
+let pendSeq = 0; const pendBusy = {};
+window.recPut = async function (n, key, arr) {   // arr が null なら消す。db に書けたら true
+  const pk = n + "|" + key, stamp = Date.now() + "_" + (++pendSeq);
+  PEND[pk] = stamp; pendSave();
+  if (!db) return false;
+  pendBusy[pk] = (pendBusy[pk] || 0) + 1;
+  try {
+    if (arr) await db.doc("rec" + n + "/" + key).set({tries: arr}); else await db.doc("rec" + n + "/" + key).delete();
+    if (PEND[pk] === stamp) { delete PEND[pk]; pendSave(); }
+    return true;
+  } catch (e) { return false; } finally { pendBusy[pk]--; }
+};
+// db から届いた記録（next）に、まだ送っていない この端末の記録（local）を重ねる
+window.recMerge = function (n, next, local) {
+  for (const pk of Object.keys(PEND)) { const j = pk.indexOf("|"); if (+pk.slice(0, j) !== +n) continue; const key = pk.slice(j + 1);
+    if (local[key]) next[key] = local[key]; else delete next[key]; }
+  return next;
+};
+const LS = "rika-step-kai" + KAI.no;
+try { rec = JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) {}
+const SKIP = new Set();  // 親がスキップにした問題 "回:id"（settings/skip）
+try { JSON.parse(localStorage.getItem("rika-step-skip") || "[]").forEach(k => SKIP.add(k)); } catch (e) {}
+const M = makeKai(KAI_NO, () => rec, (n, id) => SKIP.has(n + ":" + id));
+const {UNITS, RENSHU, HANREN, PRACTICE, ITEMS, UNIT_OF, kind, sk, last, subOk, itemOk, itemTried, firstOk, needsExtra, unitItems, unitOk, unitById, needsOf, ready} = M;
+const KEYS = (window.KEYS || {})[KAI_NO] || {};
+const FIGS = (window.FIGS || {})[KAI_NO] || {};
+function switchKai(n) {
+  try { localStorage.setItem("rika-step-kai", String(n)); } catch (e) {}
+  location.hash = "kai" + n; location.reload();
+}
+
+// 同じ人が同じ日に付け直したときは、新しい1回ではなく「その日の結果の直し」として最後の記録を置きかえる
+// （×→◎→×と押し直すと3回解いたことになっていた。2026-10-08 ユーザー「その日であれば1回でいいです」）。前後は log に残る
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+async function saveSub(p, i, entry) {
+  const key = sk(p, i), prev = rec[key] || [], l = prev[prev.length - 1];
+  const fix = l && l.by === entry.by && sameDay(entry.t, l.t);
+  const arr = fix ? prev.slice(0, -1).concat([Object.assign({}, entry, {t: l.t})]) : prev.concat([entry]);
+  if (window.logRecChange) logRecChange(KAI_NO, key, rec[key] || null, arr, fix ? "つけ直す（同じ日）" : "つける");
+  rec[key] = arr;
+  try { localStorage.setItem(LS, JSON.stringify(rec)); } catch (e) {}
+  if (!(await recPut(KAI_NO, key, arr)) && db) flash("いまはアプリに保存できません。この端末に残っていて、つながったら保存します。");
+}
+// 小問の◎×を手で切り替える: まだ → ◎ → × → まだ（塾でやった問題や、◎付けのまちがいを直すとき）
+async function cycleSub(p, i) {
+  const l = last(p, i);
+  if (!l) return saveSub(p, i, {ok: true, t: Date.now(), by: "hand"});
+  if (l.ok) return fixLast(p, i, false);
+  const key = sk(p, i); if (window.logRecChange) logRecChange(KAI_NO, key, rec[key] || null, null, "まだにもどす"); delete rec[key];
+  try { localStorage.setItem(LS, JSON.stringify(rec)); } catch (e) {}
+  await recPut(KAI_NO, key, null);
+}
+const markOf = (p, i) => last(p, i) ? (subOk(p, i) ? "◎" : "×") : "・";
+let editMarks = false;
+async function fixLast(p, i, ok) {
+  const key = sk(p, i); const arr = (rec[key] || []).slice();
+  if (!arr.length) return saveSub(p, i, {ok, t: Date.now(), by: "hand"});
+  arr[arr.length - 1] = Object.assign({}, arr[arr.length - 1], {ok, by: "hand"});
+  if (window.logRecChange) logRecChange(KAI_NO, key, rec[key] || null, arr, "付け直す");
+  rec[key] = arr;
+  try { localStorage.setItem(LS, JSON.stringify(rec)); } catch (e) {}
+  await recPut(KAI_NO, key, arr);
+}
+
+/* ---------- 次の問題を決める ---------- */
+// 1) 土台の単元が全部◎になった練習問題があれば、それを先に出す（単元の途中でも）
+// 2) なければ、例題1の単元から順に、まだ◎でない最初の問題（例題→類題→基本問題）
+// ×の問題は◎になるまで同じものが出る
+function pickNext() {
+  for (const r of PRACTICE) if (!itemOk(r) && ready(r))
+    return {p: r, why: r.after && ITEMS[r.after] ? ITEMS[r.after].no + "ができたので、反復問題" : r.needs.map(id => unitById(id).label).join("と") + "の系統ができたので、練習問題に挑戦"};
+  for (const u of UNITS) for (const p of unitItems(u)) if (!itemOk(p)) {
+    const k = kind(p);
+    const why = itemTried(p) ? "前に×だったので、もう一度" :
+      p === u.steps[0] ? "新しい系統のはじまり" : kind(p) === "反復基本" ? "1回でできなかった問題があったので、反復問題でもう一度" : u.steps[u.steps.indexOf(p) - 1].no + "ができたので、次の問題";
+    return {p, why};
+  }
+  return null;
+}
+
+/* ---------- 画面 ---------- */
+let figStep = 0;
+// 段がどの小問の説明か（viz の steps[].sub、または説明文の頭の "(1)" など）
+const stepSub = (st, subs) => { if (st && st.sub) return st.sub; const t = String((st && (st.text || st.t)) || "").trim(); return subs.find(s => s && t.startsWith(s)) || ""; };
+// まだ◎になっていない最初の小問の段から始める（全部まだ／全部◎なら最初から）
+function startStep(p, target, steps) {
+  if (!steps || !steps.length || target.id !== p.id || p.subs.length < 2) return 0;
+  const undone = p.subs.map((_, i) => i).filter(i => !subOk(p, i));
+  if (!undone.length || undone.length === p.subs.length) return 0;
+  const want = p.subs[undone[0]], j = steps.findIndex(st => stepSub(st, p.subs) === want);
+  return j < 0 ? 0 : j;
+}
+function subJumps(p, steps, cur, attr) {
+  const seen = []; steps.forEach((st, j) => { const sb = stepSub(st, p.subs); if (sb && !seen.some(x => x.sb === sb)) seen.push({sb, j}); });
+  if (seen.length < 2) return "";
+  return `<div class="row sjump">${seen.map(x => `<button class="ghost mini${x.j <= cur && !seen.some(y => y.j > x.j && y.j <= cur) ? " on" : ""}" ${attr}="${x.j}">${esc(x.sb)}から</button>`).join("")}</div>`;
+}
+let curId = null, curWhy = "", photo = null, marks = null, chat = [], busy = false, ctl = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function flash(t) { const n = $("#flash"); if (n) n.textContent = t; }
+
+function goNext() {
+  const n = pickNext();
+  curId = n ? n.p.id : null; curWhy = n ? n.why : "";
+  resetWork(); render(); loadVizCache();
+}
+function goTo(id) { curId = id; curWhy = "自分でえらんだ問題"; resetWork(); render(); loadVizCache(); }
+async function loadVizCache() { const p = ITEMS[curId]; if (!p) return; const key = KEYS[p.id], u = UNIT_OF[p.id];
+  const t = key ? p : (u ? u.steps[0] : p); const id = curId, c = await vizCached(t); if (c && curId === id && !viz) { viz = c; vizStep = startStep(p, t, c.steps); render(); } }
+let viz = null, vizStep = 0, vizMsg = "";
+let typed = {}, showAns = false, claudeState = "確認中";
+let figOpen = false;
+function resetWork() { figOpen = false; viz = null; vizStep = 0; vizMsg = ""; typed = {}; showAns = false; figStep = -1; photo = null; marks = null; chat = []; if (ctl) ctl.abort(); ctl = null; busy = false; }
+
+function renderTally() {
+  const all = [...UNITS.flatMap(u => [...u.steps, ...u.extra]), ...PRACTICE];
+  const by = k => all.filter(p => kind(p) === k);
+  $("#tally").innerHTML = ["例題","類題","基本問題","練習問題","反復基本","反復練習","テスト"].filter(k => by(k).length).map(k =>
+    `<span>${k.replace("問題","")} ${by(k).reduce((n, p) => n + p.subs.filter((_, i) => subOk(p, i)).length, 0)}/${by(k).reduce((n, p) => n + p.subs.length, 0)}</span>`).join("") + `<span class="note">小問の数</span>`;
+}
+
+function renderMap() {
+  const chip = p => {
+    const st = itemOk(p) ? "ok" : itemTried(p) ? "ng" : "";
+    const label = p.no.replace("基本問題","基本").replace("練習問題","練習");
+    if (editMarks) return `<span class="chip ${st}">${esc(label)} ${p.subs.map((s, i) => `<button class="cyc" data-cyc="${p.id}|${i}" aria-label="${esc(p.no + s)}">${esc(s)}${markOf(p, i)}</button>`).join("")}</span>`;
+    return `<button class="chip ${st} ${p.id === curId ? "now" : ""}" data-go="${p.id}">${esc(label)}${itemTried(p) ? " " + p.subs.map((_, i) => last(p, i) ? (subOk(p, i) ? "◎" : "×") : "・").join("") : ""}</button>`;
+  };
+  let h = `<div class="mh"><h2>ステップ地図</h2><button class="ghost" id="edm">${editMarks ? "終わる" : "◎×を直接つける"}</button></div>`;
+  if (editMarks) h += `<p class="legend">押すたびに　・まだ → ◎ → × → ・まだ。塾でもう◎だった小問は◎にしておくと、プリントに出なくなります。</p>`;
+  for (const u of UNITS) h += `<div class="u"><div class="name">${esc(u.label)}　${esc(u.name)}</div><div class="chips">${u.steps.map(chip).join("")}${u.extra.map(p => chip(p).replace('class="chip', `title="1回でできなかった問題があったら出ます" class="chip${needsExtra(u) || itemTried(p) ? "" : " wait"}`)).join("")}</div></div>`;
+  h += `<div class="u"><div class="name">練習問題（土台の単元ができたら出ます）</div><div class="chips">${RENSHU.map(r => {
+    const ready = r.needs.every(id => unitOk(unitById(id)));
+    return chip(r).replace('class="chip', `title="土台: ${r.needs.map(id => unitById(id).label).join("・")}" class="chip${ready || itemTried(r) ? "" : " wait"}`);
+  }).join("")}</div></div>`;
+  if (HANREN.length) h += `<div class="u"><div class="name">反復問題（練習）・ステップ②（練習問題や土台の系統ができたら出ます）</div><div class="chips">${HANREN.map(r => chip(r).replace('class="chip', `title="${esc(r.after && ITEMS[r.after] ? ITEMS[r.after].no + "のあと" : "土台: " + (r.needs || []).map(id => (unitById(id) || {}).label).join("・"))}" class="chip${ready(r) || itemTried(r) ? "" : " wait"}`)).join("")}</div></div>`;
+  h += `<p class="legend">◎ できた　× まだ　うすい練習問題は、土台の単元がまだ。押すとその問題にとべます。</p>`;
+  $("#map").innerHTML = h;
+  $("#map").querySelectorAll("[data-go]").forEach(b => b.onclick = () => goTo(b.dataset.go));
+  $("#edm").onclick = () => { editMarks = !editMarks; render(); };
+  $("#map").querySelectorAll("[data-cyc]").forEach(b => b.onclick = async () => { const [id, i] = b.dataset.cyc.split("|"); await cycleSub(ITEMS[id], +i); render(); });
+}
+
+function renderCur() {
+  const el = $("#cur");
+  if (!curId && MODE === "child") { el.innerHTML = ""; return; }
+  if (!curId) { el.innerHTML = `<div class="finish"><p>${kaiName(KAI.no)}、ぜんぶ◎！</p><div class="note">例題・類題・基本問題・練習問題が全部できました。</div></div>`; return; }
+  const p = ITEMS[curId], key = KEYS[p.id], u = UNIT_OF[p.id];
+  const subsToDo = p.subs.map((s, i) => i).filter(i => !subOk(p, i));
+  // この欄が何の問題かを見出しで出す（2026-10-10 ユーザー「何をすると切り替わるんですか？」）
+  let h = `${MODE === "child" ? "" : `<p class="curhead">いま開いている問題：<b>${kaiName(KAI.no)} ${esc(p.no)}</b><span class="note">（保護者の画面の「問題を開く」や、今日のプリントの問題名を押すと切りかわります。右は${kaiName(KAI.no)}のステップの地図）</span></p><span class="why">${esc(curWhy)}</span>`}
+    <div class="qhead"><h2>${esc(p.no)}</h2><span class="unit">${u ? esc(u.name) : p.after && ITEMS[p.after] ? esc(ITEMS[p.after].no) + "の反復" : "土台: " + p.needs.map(id => unitById(id).label).join("・")}</span></div>
+    <img class="qimg" src="${imgSrc(p.img)}" alt="${esc(p.no)}の問題">`;
+  if (itemTried(p) && subsToDo.length && subsToDo.length < p.subs.length)
+    h += `<p class="note">今回は ${subsToDo.map(i => p.subs[i]).join("・")} だけ解き直そう。</p>`;
+  h += `<div class="steps">`;
+  // 1 写真
+  h += `<section class="step"><h3><b>1</b>${canImg ? "紙に解いたら、写真をとろう" : "紙に解いたら、答え合わせ"}</h3>`;
+  if (key && canImg) {
+    h += `<div class="row"><label class="btn ${photo ? "" : "primary"}">${photo ? "とり直す" : "写真をとる・えらぶ"}<input id="ph" type="file" accept="image/*"></label>
+      ${photo ? `<img class="photo" id="phimg" alt="とった答案">` : `<span class="note">書画カメラの写真をえらんでもOK</span>`}</div>`;
+  } else if (!key) {
+    h += `<p class="note">この問題は、まだ答えがアプリに入っていません。解答編で丸付けして、下の◎か×を押してね。</p>`;
+  } else {
+    h += `<p class="note">紙に解いたら、下の「答えを見る」で答え合わせをしよう。</p>
+      <p class="note diag">（状態: Claude ${claudeState}・写真 ${canImg ? "送れる" : "送れない"}）</p>`;
+  }
+  // 答えを見る（紙と見くらべて、下で◎×をつける）
+  if (key) {
+    h += `<div class="row"><button class="${showAns ? "ghost" : "primary"}" id="showans">${showAns ? "答えをかくす" : "答えを見る"}</button></div>`;
+    if (showAns) h += `<div class="marks ansbox">${p.subs.map((s, i) => `<div class="mark"><span class="sub">${esc(s || "答え")}</span><b class="ansv">${esc(key.a[i])}</b></div>`).join("")}</div>`;
+  }
+  h += `</section>`;
+  // 2 丸付け
+  h += `<section class="step"><h3><b>2</b>丸付け</h3>`;
+  if (key && canImg && sample) h += `<div class="row"><button class="primary" id="grade" ${photo && !busy ? "" : "disabled"}>◎付けしてもらう</button><span class="note" id="gst"></span></div>`;
+  if (marks) {
+    h += `<div class="marks">${marks.subs.map(m => `<div class="mark"><span class="sym">${m.correct === true ? "◎" : m.correct === false ? "×" : "？"}</span><span class="sub">${esc(p.subs[m.i] || "答え")}</span><span class="read">${m.read == null ? "読めなかった" : "書いた答え: " + esc(m.read)}</span></div>`).join("")}</div>`;
+    if (marks.comment) h += `<p class="comment">${esc(marks.comment)}</p>`;
+    if (marks.subs.some(m => m.correct == null)) h += `<p class="note">読めなかったところは、写真をとり直してね。</p>`;
+  }
+  h += `<details ${key && canImg && sample && !showAns ? "" : "open"}><summary class="note">${MODE === "child" ? "自分で◎×をつける" : "自分で付ける・付け直す"}</summary><div class="marks">${p.subs.map((s, i) =>
+    `<div class="mark"><span class="sub">${esc(s || "答え")}</span><button class="ghost" data-hand="${i}" data-ok="1">◎ できた</button><button class="ghost" data-hand="${i}" data-ok="0">× まちがい</button><span class="read">${last(p, i) && (MODE !== "child" || new Date(last(p, i).t).toDateString() === new Date().toDateString()) ? "いま: " + (last(p, i).ok ? "◎" : "×") : ""}</span></div>`).join("")}</div></details>`;
+  h += `<p class="note" id="flash"></p></section>`;
+  // 3 解説
+  const exTarget = key ? p : (u ? u.steps[0] : (needsOf(p).length ? unitById(needsOf(p)[needsOf(p).length - 1]).steps[0] : p));
+  const canExplain = !!KEYS[exTarget.id];
+  h += `<section class="step"><h3><b>3</b>解説</h3>`;
+  // 本の解答・解説の元画像（答えが見えるので、押したときだけ開く）
+  const ansOf = q => (q.ans || []).map((_, k) => `img/${KAI_NO}/a_${q.id}_${k}.png`);
+  const ansItem = ansOf(p).length ? p : (ansOf(exTarget).length ? exTarget : null);
+  if (ansItem) h += `<details class="ansimg"><summary>本の解答を見る${ansItem.id === p.id ? "" : "（" + esc(ansItem.no) + "）"}<span class="note">　答えが見えます</span></summary>${ansOf(ansItem).map(src => `<img src="${imgSrc(src)}" alt="${esc(ansItem.no)}の本の解答">`).join("")}</details>`;
+  // 本の解き方の書き起こし（Claude を呼べない画面でも読める）
+  const howKey = KEYS[exTarget.id];
+  if (howKey && howKey.how) h += `<details class="ansimg" ${showAns ? "open" : ""}><summary>本の解き方を読む${exTarget.id === p.id ? "" : "（" + esc(exTarget.no) + "）"}<span class="note">　答えが見えます</span></summary><div class="explain">${esc(howKey.how)}</div>${howKey.src ? `<p class="note">出典: ${esc(howKey.src)}</p>` : ""}</details>`;
+  // 授業（予習ナビ）の板書の写し。反復問題は同じ型の基本・練習問題、授業に無い問題はその系統の例題の板書
+  const LI = (window.LECTIMG || {})[KAI_NO] || {};
+  const twin = id => id.startsWith("hanren") ? id.slice(3) : id.startsWith("han") ? "kihon" + id.slice(3) : id;
+  const lectItem = [p, ITEMS[twin(p.id)], exTarget].find(q => q && LI[q.id]);
+  if (lectItem) h += `<details class="ansimg"><summary>授業の板書を見る${lectItem.id === p.id ? "" : "（" + esc(lectItem.no) + "）"}<span class="note">　答えが見えます</span></summary>${LI[lectItem.id].map(src => `<img src="${src}" alt="${esc(lectItem.no)}の授業の板書">`).join("")}</details>`;
+  const figs = FIGS[exTarget.id];
+  if (figs && figStep < 0) figStep = startStep(p, exTarget, figs);
+  // 図には答えの数字が出るので、「答えを見る」か「図で見る」を押すまで出さない（問題の画面に答えを出さない）
+  if (figs && !showAns && !figOpen) h += `<div class="row"><button class="ghost" id="figopen">図で見る（${figs.length}まい）<span class="note">　答えが見えます</span></button></div>`;
+  else if (figs) { const f = figs[Math.min(figStep, figs.length - 1)];
+    h += subJumps(p, figs, figStep, "data-fj");
+    h += `<div class="fig"><p class="ft">図で見る${exTarget.id === p.id ? "" : "（" + esc(exTarget.no) + "）"}　${figStep + 1}/${figs.length}</p><p>${esc(f.t)}</p><div class="fs">${f.svg}</div>
+      <div class="fn"><button class="ghost" id="fprev" ${figStep ? "" : "disabled"}>◀ まえ</button><span class="dots">${figs.map((_, j) => `<i class="${j === figStep ? "on" : ""}"></i>`).join("")}</span><button class="${figStep < figs.length - 1 ? "primary" : "ghost"}" id="fnext" ${figStep < figs.length - 1 ? "" : "disabled"}>つぎ ▶</button></div></div>`;
+  }
+  if (sample && canExplain) {
+    const canViz = false;   // 画像を送れない画面では、本の解き方から図を組み立てる
+    if (canViz) h += `<div class="row"><button class="${viz ? "ghost" : "primary"}" id="vz" ${busy || vizBusyFor ? "disabled" : ""}>${vizBusyFor ? "図をかいています…" : viz ? "図で説明をかき直す" : "図で説明してもらう"}</button></div>`;
+    if (vizMsg) h += `<p class="note">${esc(vizMsg)}</p>`;
+    if (viz && viz.steps && viz.steps.length) { const st = viz.steps[Math.min(vizStep, viz.steps.length - 1)];
+      h += subJumps(exTarget, viz.steps, vizStep, "data-vj");
+      h += `<div class="fig"><p class="ft">図で説明　${vizStep + 1}/${viz.steps.length}</p><p>${esc(st.text)}</p><div class="fs">${vizDraw(exTarget, viz, vizStep)}</div>
+        <div class="fn"><button class="ghost" id="vprev" ${vizStep ? "" : "disabled"}>◀ まえ</button><span class="dots">${viz.steps.map((_, j) => `<i class="${j === vizStep ? "on" : ""}"></i>`).join("")}</span><button class="${vizStep < viz.steps.length - 1 ? "primary" : "ghost"}" id="vnext" ${vizStep < viz.steps.length - 1 ? "" : "disabled"}>つぎ ▶</button></div>
+        ${viz.kind === "overlay" ? "" : `<p class="note">図は説明のために描き直したものです。長さの比は本の図と同じではありません。</p>`}</div>`; }
+    h += `<div class="row"><button id="ex" ${busy ? "disabled" : ""}>${key ? "解説してもらう" : esc(exTarget.no) + "の解き方を教えてもらう"}</button>${busy ? `<button class="ghost" id="stop">とめる</button>` : ""}</div>`;
+    h += `<div class="chat" id="chat">${chat.map((c, j) => j === 0 ? "" : `<div class="${c.role === "user" ? "me" : "cl"}">${esc(c.show || c.content)}</div>`).join("")}</div>`;
+    if (chat.length > 1) h += `<form class="ask" id="askf"><input id="askq" placeholder="わからないところを聞く" autocomplete="off"><button ${busy ? "disabled" : ""}>聞く</button></form>`;
+  } else h += `<p class="note">${sample ? "この問題の解説は、解答編が入ったら使えます。" : "この画面では Claude を呼べません。"}</p>`;
+  h += `</section>`;
+  // 次へ
+  if (MODE === "child") h += `<div class="row"><button class="primary" id="next">つぎの問題へ</button><button class="ghost" id="back">一覧にもどる</button></div></div>`;
+  else h += `<div class="row">${itemOk(p) ? `<button class="primary" id="next">次の問題へ</button>` : `<span class="note">◎になるまで、解説を見てもう一度やろう。</span><button class="ghost" id="next">ほかの問題を先にやる</button>`}</div></div>`;
+  el.innerHTML = h;
+  if (pendingFlash) { flash(pendingFlash); pendingFlash = ""; }
+
+  if (photo && $("#phimg")) $("#phimg").src = URL.createObjectURL(photo);
+  const ph = $("#ph"); if (ph) ph.onchange = () => { photo = ph.files[0] || null; marks = null; render(); };
+  const sa = $("#showans"); if (sa) sa.onclick = () => { showAns = !showAns; renderCur(); };   // 理科は Claude に図を作らせない
+  el.querySelectorAll("[data-ta]").forEach(x => x.oninput = () => { typed[+x.dataset.ta] = x.value; });
+  const tf = $("#typef"); if (tf) tf.onsubmit = e => { e.preventDefault(); checkTyped(p, subsToDo.length ? subsToDo : p.subs.map((_, i) => i)); };
+  const g = $("#grade"); if (g) g.onclick = () => grade(p, subsToDo.length ? subsToDo : p.subs.map((_, i) => i));
+  el.querySelectorAll("[data-hand]").forEach(b => b.onclick = async () => { const i = +b.dataset.hand, ok = b.dataset.ok === "1";
+    if (MODE === "child") await saveSub(p, i, {ok, t: Date.now(), by: "kid"}); else await fixLast(p, i, ok); render(); });
+  const fo = $("#figopen"); if (fo) fo.onclick = () => { figOpen = true; renderCur(); };
+  const fp = $("#fprev"), fx = $("#fnext");
+  if (fp) fp.onclick = () => { figStep--; renderCur(); };
+  if (fx) fx.onclick = () => { figStep++; renderCur(); };
+  const ex = $("#ex"); if (ex) ex.onclick = () => explain(p, exTarget);
+  const vz = $("#vz"); if (vz) vz.onclick = () => explainViz(p, exTarget, !!viz);
+  el.querySelectorAll("[data-vj]").forEach(b => b.onclick = () => { vizStep = +b.dataset.vj; renderCur(); });
+  el.querySelectorAll("[data-fj]").forEach(b => b.onclick = () => { figStep = +b.dataset.fj; renderCur(); });
+  const vp = $("#vprev"), vn = $("#vnext");
+  if (vp) vp.onclick = () => { vizStep--; renderCur(); };
+  if (vn) vn.onclick = () => { vizStep++; renderCur(); };
+  const st = $("#stop"); if (st) st.onclick = () => ctl && ctl.abort();
+  const f = $("#askf"); if (f) f.onsubmit = e => { e.preventDefault(); const q = $("#askq").value.trim(); if (q) ask(q); };
+  if (MODE === "child") { $("#next").onclick = () => kidNext(p); $("#back").onclick = () => { curId = null; resetWork(); render(); window.scrollTo(0, 0); }; }
+  else $("#next").onclick = () => { if (itemOk(p)) goNext(); else skipOnce(p); };
+}
+// 「ほかの問題を先に」: いまの問題をとばして、その次の候補へ（記録は変えない）
+function skipOnce(p) {
+  const order = [...PRACTICE.filter(ready), ...UNITS.flatMap(unitItems)].filter(q => !itemOk(q) && q.id !== p.id);
+  if (order.length) { curId = order[0].id; curWhy = "あとで" + p.no + "にもどろう"; } resetWork(); render();
+}
+function render() { renderTally(); renderMap(); renderCur(); }
+
+/* ---------- Claude に頼む ---------- */
+function answerLines(p, key, idx) { return idx.map(i => `${p.subs[i] || "答え"}: ${key.a[i]}`).join("\n"); }
+async function grade(p, idx) {
+  const key = KEYS[p.id]; busy = true; render(); $("#gst").textContent = "丸付け中…";
+  const prompt = `あなたは小学5年生の理科の計算問題の丸付けをする先生です。写真は、子どもが次の問題を紙に解いた答案です。
+
+【問題】
+${key.q || "（問題文は、いっしょに送る1枚目の画像。2枚目が子どもの答案）"}
+
+【本の正しい答え】
+${answerLines(p, key, idx)}
+
+【やること】
+写真から、上の小問それぞれについて子どもが最後に書いた答えを読み取り、本の正しい答えと同じかどうかを判定してください。
+- 正しい答えは「本の正しい答え」だけです。自分で解き直して判定を変えてはいけません。
+- 比は順番も同じでなければ×。約分していない比は◎にして、comment で「かんたんにしよう」と伝える。
+- 単位を書き忘れただけなら◎にして、comment で単位を書くよう伝える。
+- 答えが複数ある問題は、全部そろっていて余分がないときだけ◎。
+- 写真で読み取れない小問は read を null、correct を null にする。当て推量で判定しない。
+
+次のJSONだけを返してください:
+{"subs":[{"sub":"(1)","read":"子どもの答え","correct":true}],"comment":"子どもへの一言。やさしく1〜2文"}`;
+  try {
+    const qimg = key.q ? [] : await imgBlob(p.img);
+    const r = await sample.json(prompt, {images: [...qimg, photo]});
+    const got = Array.isArray(r && r.subs) ? r.subs : [];
+    marks = {subs: idx.map((i, j) => {
+      const m = got.find(x => x && x.sub === (p.subs[i] || "答え")) || got[j] || {};
+      return {i, read: m.read ?? null, correct: m.correct === true ? true : m.correct === false ? false : null};
+    }), comment: typeof r.comment === "string" ? r.comment : ""};
+    for (const m of marks.subs) if (m.correct !== null) await saveSub(p, m.i, {ok: m.correct, t: Date.now(), by: "claude", read: m.read});
+  } catch (e) {
+    marks = null; flashLater(e.code === "not_granted" ? "Claude を使う許可がないので、自分で付けてね。" : e.code === "rate_limited" ? "少し待ってから、もう一度押してね。" : e.code === "image_rejected" ? "この写真は送れませんでした。別の写真にしてね。" : "丸付けできませんでした。もう一度押すか、自分で付けてね。");
+  }
+  busy = false; render();
+}
+let pendingFlash = ""; function flashLater(t) { pendingFlash = t; }
+
+// 打ちこんだ答えの答え合わせ: 書き方をそろえて同じなら◎。ちがうときは Claude に（文字だけで）同じ答えかを聞く。Claude が使えなければ本の答えを見せる
+const norm = t => String(t || "").normalize("NFKC").replace(/\([^)]*[ぁ-んァ-ヶ一-龥][^)]*\)/g, "").replace(/[\s、，,]/g, "").replace(/：/g, ":").toLowerCase();
+async function checkTyped(p, idx) {
+  const key = KEYS[p.id];
+  const rows = idx.map(i => ({i, kid: (typed[i] || "").trim(), ans: key.a[i]}));
+  if (rows.some(r => !r.kid)) { flashLater("答えを全部打ちこんでね。"); return render(); }
+  let res = rows.map(r => ({i: r.i, read: r.kid, correct: norm(r.kid) === norm(r.ans) ? true : null}));
+  const unsure = res.filter(r => r.correct === null);
+  if (unsure.length && sample) {
+    busy = true; render();
+    try {
+      const j = await sample.json(`小学5年生の理科の計算問題の丸付けです。子どもの答えが本の正しい答えと同じ答えかを判定してください。自分で問題を解き直してはいけません。
+- 単位がないだけ、書き方（漢字・ひらがな・全角半角・分数と帯分数）がちがうだけなら正解。
+- 比は順番も同じでなければ不正解。約分していない比は正解。答えが複数あるものは、全部そろっていて余分がないときだけ正解。
+${unsure.map(r => `${p.subs[r.i] || "答え"}: 本の答え「${key.a[r.i]}」／子どもの答え「${r.read}」`).join("\n")}
+次のJSONだけを返してください: {"results":[{"sub":"(1)","correct":true}]}`, {modelTier: "quick"});
+      const got = Array.isArray(j && j.results) ? j.results : [];
+      unsure.forEach((r, k) => { const m = got.find(x => x && x.sub === (p.subs[r.i] || "答え")) || got[k]; if (m && typeof m.correct === "boolean") r.correct = m.correct; });
+    } catch (e) {}
+    busy = false;
+  }
+  for (const r of res) if (r.correct !== null) await saveSub(p, r.i, {ok: r.correct, t: Date.now(), by: "typed", read: r.read});
+  marks = {subs: res, comment: res.some(r => r.correct === null) ? "「？」は判定できなかったので、本の答え（解説の欄）と見くらべて、下の◎か×を押してね。" : ""};
+  render();
+}
+
+function explainRules(p, target) {
+  const k = KEYS[target.id];
+  const kid = marks ? marks.subs.map(m => `${p.subs[m.i] || "答え"}: 子どもの答え「${m.read ?? "読めない"}」→ ${m.correct ? "正解" : m.correct === false ? "まちがい" : "不明"}`).join("\n") : "（まだ丸付けしていない）";
+  return `あなたは小学5年生に理科の計算を教える、やさしい先生です。予習シリーズ5年下・理科の計算問題の解説をします。
+
+【問題】${target.id === p.id ? "" : `（いま解いているのは ${p.no}。その土台になっている ${target.no} の解き方を説明する）`}
+${k.q || "（問題文は、いっしょに送る1枚目の画像）"}
+
+【本の答え】
+${k.a.map((a, i) => `${target.subs[i] || "答え"}: ${a}`).join("\n")}
+
+【本の解き方】
+${k.how || "（本に解説がない。本の答えになる解き方を、この単元の考え方で説明する）"}
+
+【画面に出ている図（この順に子どもがめくって見る）】
+${(FIGS[target.id] || []).map((f, i) => `図${i + 1}: ${f.t}`).join("\n") || "（図なし）"}
+
+【この子の結果】
+${target.id === p.id ? kid : "（" + p.no + "を解いている途中）"}
+${lectBlock(target)}
+
+【きまり】
+- 本の解き方の考え方にそって説明する。本の答えとちがう答えを言ってはいけない。
+- まちがえた小問があれば、そこから先に説明する。写真があれば、どこでまちがえたかを見て伝える。
+- 小学5年生にわかる言葉で、式は1行ずつ書く。全体で400字くらいまで。
+- マークダウンの記号（# * - など）は使わない。見出しは【 】で書く。
+- 図があるときは、図と同じ順に説明し、「図2を見てね」のように図の番号を入れる。
+- 最後に「もう一度やってみよう」と声をかける。`;
+}
+async function run(turns, opts) {
+  busy = true; ctl = new AbortController(); render();
+  const box = document.createElement("div"); box.className = "cl"; box.textContent = "考え中…"; $("#chat").append(box);
+  try {
+    const {text} = await sample(turns, Object.assign({cache: false, signal: ctl.signal, onText: ({text}) => { box.textContent = text; }}, opts || {}));
+    chat.push({role: "assistant", content: text});
+  } catch (e) {
+    if (e.text) chat.push({role: "assistant", content: e.text});
+    else if (e.code !== "cancelled") chat.push({role: "assistant", content: e.code === "rate_limited" ? "いま混んでいます。少し待ってからもう一度押してね。" : "説明できませんでした。もう一度押してね。", show: null});
+    if (chat.length && chat[chat.length - 1].role === "user") chat.pop();
+  }
+  busy = false; ctl = null; render();
+}
+async function imgBlob(src) { try { const r = await fetch(await imgReady(src)); return [await r.blob()]; } catch (e) { return []; } }
+// 図で説明: 作ったものは保存（この端末＋アプリ）。「答えを見る」で裏で作り始める
+let vizBusyFor = null;
+const vizKey = t => KAI_NO + "_" + t.id;
+async function vizCached(t) {
+  try { const v = JSON.parse(localStorage.getItem("rika-viz-" + vizKey(t)) || "null"); if (vizUsable(t, v)) return v; } catch (e) {}
+  if (db) { try { const d = await db.doc("viz/" + vizKey(t)).get(); if (d.exists && d.data().json) { const v = JSON.parse(d.data().json); if (vizUsable(t, v)) { try { localStorage.setItem("rika-viz-" + vizKey(t), d.data().json); } catch (e) {} return v; } } } catch (e) {} }
+  return null;
+}
+async function explainViz(p, target, fresh) {
+  if (!sample || vizBusyFor === target.id) return;
+  const id = curId;
+  if (!fresh) { const c = await vizCached(target); if (c) { if (curId === id) { viz = c; vizStep = startStep(p, target, c.steps); vizMsg = ""; render(); } return; } }
+  vizBusyFor = target.id; if (curId === id) { vizMsg = "図をかいています…（30秒〜1分くらい）"; render(); }
+  const kid = target.id === p.id && marks ? marks.subs.map(m => `${p.subs[m.i] || "答え"}: 「${m.read ?? "?"}」→ ${m.correct ? "正解" : m.correct === false ? "まちがい" : "不明"}`).join("\n") : "";
+  let d = null, msg = "";
+  try {
+    const imgs = canImg ? await imgBlob(target.img) : [];
+    d = await sample.json(vizPromptFor(target, KEYS[target.id], kid, imgs.length > 0), imgs.length && !target.fig ? {images: imgs} : {});
+    if (!d || !Array.isArray(d.steps) || !d.steps.length) throw {code: "invalid_json"};
+    if (lectOf(target)) d.lect = true;
+    const js = JSON.stringify(d);
+    try { localStorage.setItem("rika-viz-" + vizKey(target), js); } catch (e) {}
+    if (db) { try { await db.doc("viz/" + vizKey(target)).set({json: js, t: Date.now()}); } catch (e) {} }
+  } catch (e) {
+    d = null; msg = e.code === "rate_limited" ? "いま混んでいます。少し待ってからもう一度押してね。" : "図をかけませんでした。もう一度押してね。";
+  }
+  vizBusyFor = null;
+  if (curId === id) { if (d) { viz = d; vizStep = startStep(p, target, d.steps); } vizMsg = msg; render(); }
+}
+async function explain(p, target) {
+  chat = [{role: "user", content: explainRules(p, target) + "\n\nでは、説明を始めてください。"}];
+  const imgs = canImg ? [...(KEYS[target.id].q ? [] : await imgBlob(target.img)), ...(photo && target.id === p.id ? [photo] : [])] : [];
+  run(chat, imgs.length ? {images: imgs} : {});
+}
+function ask(q) {
+  chat.push({role: "user", content: q});
+  const turns = chat.slice(0, 1).concat(chat.slice(1).slice(-10));
+  run(turns);
+}
+
+/* ---------- 起動 ---------- */
+$("#kai").innerHTML = KAI_LIST.map(n => `<option value="${n}" ${n === KAI_NO ? "selected" : ""}>${esc(window.KAI_DATA[n].title)}</option>`).join("");
+$("#kai").onchange = e => switchKai(+e.target.value);
+window.addEventListener("hashchange", () => { const h = /^#kai(\d+)$/.exec(location.hash); if (h && +h[1] !== KAI_NO) location.reload(); });
+if (MODE === "parent") goNext(); else render();
+$("#tochild").onclick = () => setMode("child");
+// おうちの人の画面へは合言葉（子どもが入らないためだけのもの）
+const PARENT_PW = "hoge";
+$("#toparent").onclick = () => { $("#pwbox").hidden = false; $("#pw").focus(); };
+$("#pwf").onsubmit = e => { e.preventDefault(); if ($("#pw").value.trim().toLowerCase() === PARENT_PW) setMode("parent"); else { $("#pwmsg").textContent = "ちがいます"; $("#pw").value = ""; } };
+(async () => {
+  if (!window.claude) return;
+  try {
+    db = await claude.use("db");
+    let first = true;
+    if (db) db.collection(RECC).onSnapshot(snap => {
+      const next = {};
+      snap.docs.forEach(d => { const v = d.data(); if (v && Array.isArray(v.tries)) next[d.id] = v.tries; });
+      if (snap.empty && Object.keys(rec).length) { first = false; return; }   // アプリにまだ記録が無いときは、この端末の記録を使う
+      rec = recMerge(KAI_NO, next, rec); try { localStorage.setItem(LS, JSON.stringify(rec)); } catch (e) {}
+      if (first) { first = false; if (!busy && !marks && MODE === "parent") goNext(); else if (!busy) render(); } else if (!busy) render();
+    }, () => {});
+  } catch (e) {}
+  try {
+    sample = await claude.use("sample");
+    if (sample) { const lim = await sample.limits().catch(() => null); canImg = !!(lim && lim.images); }
+    claudeState = sample ? "使える" : "使えない";
+  } catch (e) { sample = null; }
+  if (!busy) render();
+})();
+</script>
+<script>loadJs("dan.js?v=70826427")</script>
+<script>loadJs("store.js?v=e35d91ef")</script>
+<script>loadJs("offline.js?v=2ea2380e")</script>
+<script>loadJs("today.js?v=c5d13fd1")</script>
+<script>loadJs("dash.js?v=aea211aa")</script>
+
+
+<script src="offbar.js"></script>

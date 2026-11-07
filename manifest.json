@@ -1,0 +1,2 @@
+{"name": "理科オフライン", "short_name": "理科オフライン", "start_url": "./index.html", "scope": "./", "display": "standalone", "background_color": "#f5f6f0", "theme_color": "#2f6b3a",
+ "icons": [{"src": "icon.png", "sizes": "180x180", "type": "image/png"}, {"src": "icon512.png", "sizes": "512x512", "type": "image/png"}]}

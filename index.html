@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>理科オフライン</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="理科オフライン">
+<style>
+:root{--paper:#f5f6f0;--ink:#1d2a2c;--muted:#5f6f70;--teal:#2f6b3a;--red:#cf3a2c;--line:#d3dacb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 "Hiragino Sans","BIZ UDPGothic","Yu Gothic UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:24px;margin:0 0 4px}
+.note{color:var(--muted);font-size:14px}
+.box{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin:14px 0}
+button,.btn{display:inline-block;font:inherit;font-weight:700;padding:12px 16px;border-radius:10px;border:2px solid var(--teal);background:#fff;color:var(--teal);margin:4px 6px 4px 0;cursor:pointer}
+button.primary{background:var(--teal);color:#fff}
+.warn{color:var(--red);font-weight:700}
+textarea{width:100%;height:90px;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>理科オフライン</h1>
+  <p class="note">いつもの理科計算ステップ帳を、ネットがなくても使うためのページです。中身（問題）は、機内用ファイルを読み込んだ iPad の中にだけあります。</p>
+  <div class="box" id="st">読み込み中…</div>
+  <div class="box">
+    <b>ファイルを読み込む</b>
+    <p class="note">いつものアプリの「機内用ファイルを作る」で保存したファイルを選びます。<br>★ホーム画面の「理科オフライン」から開いて読み込んでね（Safari のタブで読み込むと、ホーム画面のほうには入りません）。</p>
+    <label class="btn">ファイルを選ぶ<input id="file" type="file" accept=".json,application/json" hidden></label>
+    <p id="fmsg" class="note"></p>
+  </div>
+  <div class="box">
+    <b>記録を書き出す</b>
+    <p class="note">着いたら、ここで記録のファイルを保存して、いつものアプリの「機内の記録を読み込む」で選びます。書き出しても、この iPad の記録は消えません。</p>
+    <button id="exp">記録を書き出す</button>
+    <p id="emsg" class="note"></p>
+    <details><summary class="note">ファイルで保存できないとき（文字で写す）</summary><textarea id="etxt" readonly></textarea></details>
+  </div>
+</main>
+<script src="offdb.js"></script>
+<script>
+var $ = function (s) { return document.querySelector(s); };
+var pack = null;
+function md(s) { return s ? s.slice(5).replace("-", "/") : ""; }
+// 読み込んだときの記録（pack.ls）と比べて、あとからついた記録・付け直した記録だけを集める
+function newRecs() {
+  var out = {app: "rika-step", kind: "recs", v: 1, created: Date.now(), from: pack ? pack.created : 0, recs: {}}, n = 0, left = 0, ex = exported();
+  for (var i = 0; i < localStorage.length; i++) { var key = localStorage.key(i), m;
+    if (!(m = /^rika-step-kai(\d+)$/.exec(key))) continue;
+    var cur = {}, base = {}; try { cur = JSON.parse(localStorage.getItem(key) || "{}"); base = JSON.parse((pack && pack.ls[key]) || "{}"); } catch (e) {}
+    Object.keys(cur).forEach(function (sk) { if (!Array.isArray(cur[sk])) return;
+      var bt = {}; (base[sk] || []).forEach(function (x) { bt[x.t + ":" + x.ok] = 1; });
+      var extra = cur[sk].filter(function (x) { return x && !bt[x.t + ":" + x.ok]; });
+      if (extra.length) { (out.recs[m[1]] = out.recs[m[1]] || {})[sk] = extra; n += extra.length;
+        extra.forEach(function (x) { if (!ex[m[1] + "|" + sk + "|" + x.t + ":" + x.ok]) left++; }); } });
+  }
+  return {out: out, n: n, left: left};
+}
+// 書き出した記録の印（「まだ書き出していない記録」を数えるためだけ。算数・社会の漢字と同じ。2026-11-08 相互チェック）
+function exported() { try { return JSON.parse(localStorage.getItem("rika-off-exported") || "{}"); } catch (e) { return {}; } }
+function markExported(recs) { var ex = exported();
+  Object.keys(recs).forEach(function (n) { Object.keys(recs[n]).forEach(function (sk) { recs[n][sk].forEach(function (x) { ex[n + "|" + sk + "|" + x.t + ":" + x.ok] = 1; }); }); });
+  try { localStorage.setItem("rika-off-exported", JSON.stringify(ex)); } catch (e) {} }
+function show() {
+  if (!pack) { $("#st").innerHTML = '<b>まだファイルが入っていません。</b><br><span class="note">下の「ファイルを選ぶ」で読み込んでね。</span>'; return; }
+  var d = pack.days[0], c = newRecs().left;
+  $("#st").innerHTML = '<b>入っている問題</b><br><button class="primary" id="go">' + md(d.date) + " の " + d.items.length + "問を始める</button>" +
+    '<p class="note">ファイルを作った日: ' + new Date(pack.created).toLocaleString("ja-JP") + "<br>まだ書き出していない記録: " + c + " 件</p>";
+  $("#go").onclick = function () { location.href = "app.html"; };
+}
+$("#file").onchange = async function (e) {
+  var f = e.target.files[0]; if (!f) return; $("#fmsg").textContent = "読み込んでいます…";
+  try {
+    var o = JSON.parse(await f.text());
+    if (!o || o.app !== "rika-step" || o.kind !== "offline" || !Array.isArray(o.days) || !o.days.length || !o.files || !o.ls) throw new Error("理科の機内用ファイルではありません");
+    var same = pack && pack.created === o.created, c = pack && !same ? newRecs().left : 0;
+    if (c && !confirm("まだ書き出していない記録が " + c + " 件あります。読み込むと、この iPad の記録は新しいファイルの中身にかわります。先に「記録を書き出す」をしましたか？\n\nOK＝読み込む／キャンセル＝やめる")) { $("#fmsg").textContent = "やめました。"; return; }
+    var meta = {created: o.created, days: o.days, ls: o.ls};
+    await OFFDB.putAll(o.files, meta);
+    Object.keys(o.ls).forEach(function (k) { if (same && /^rika-step-(kai\d+|pending)$/.test(k)) return; localStorage.setItem(k, o.ls[k]); });   // 同じファイルなら、機内でつけた記録はそのまま
+    if (!same) { try { localStorage.removeItem("rika-off-exported"); } catch (e3) {} }
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e2) {}
+    pack = meta; $("#fmsg").textContent = "読み込みました（ファイル " + Object.keys(o.files).length + " 個）。上のボタンで始めてね。"; show();
+  } catch (err) { $("#fmsg").textContent = "読み込めませんでした: " + ((err && err.message) || err) + "（前の中身はそのままです）"; }
+  e.target.value = "";
+};
+$("#exp").onclick = async function () {
+  if (!pack) { $("#emsg").textContent = "まだファイルが入っていません。"; return; }
+  var r = newRecs(), js = JSON.stringify(r.out), d = new Date(), name = "理科_機内の記録_" + (d.getMonth() + 1) + "月" + d.getDate() + "日" + d.getHours() + "時" + d.getMinutes() + "分.json";
+  $("#etxt").value = js;
+  var blob = new Blob([js], {type: "application/json"});
+  try {
+    var file = new File([blob], name, {type: "application/json"});
+    if (!(navigator.canShare && navigator.canShare({files: [file]}))) {   // ホーム画面の画面で a.click() すると、中身が出て戻れなくなるおそれ（算数の相互チェック）
+      document.querySelector("details").open = true; $("#emsg").textContent = "この画面ではファイルにできません。下の文字を全部コピーして、メモなどに貼って保存してね。"; return; }
+    await navigator.share({files: [file], title: name});
+    markExported(r.out.recs); show();
+    $("#emsg").textContent = "記録 " + r.n + " 件を書き出しました。「ファイルに保存」を選んでね。";
+  } catch (err) { $("#emsg").textContent = (err && err.name === "AbortError") ? "やめました。" : "保存できませんでした。下の「文字で写す」を使ってね。"; }
+};
+// service worker（画面を iPad に取っておく）。はじめて開いたときは、入ったら一度だけ開き直す
+(async function () {
+  try { pack = await OFFDB.get("meta", "pack") || null; } catch (e) { pack = null; }
+  show();
+  if (!("serviceWorker" in navigator)) { $("#st").insertAdjacentHTML("beforeend", '<p class="warn">この画面ではオフラインで使えません（Safari で開いてね）。</p>'); return; }
+  try { await navigator.serviceWorker.register("sw.js"); await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller && !sessionStorage.getItem("swre")) { sessionStorage.setItem("swre", "1"); location.reload(); } } catch (e) {}
+})();
+</script>
+</body>
+</html>
